@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+  <head>
+    <meta charset="utf-8">
+    <title>Books API</title>
+    <!-- Bootstrap -->
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.1.0/css/bootstrap.min.css" integrity="sha384-9gVQ4dYFwwWSjIDZnLEWnxCjeSWFphJiwGPXr1jddIhOegiu1FwO5qRGvFXOdJZ4"
+      crossorigin="anonymous">
+    <link rel="stylesheet" href="./styles.css">
+  </head>
+  <body>
+    <h1>Google Books Search</h1>
+    Search For:
+    <div class="form-group">
+      <label for="usr">Name:</label>
+      <input type="text" name="bookSearch" class="form-control">
+      <input type="submit" value="Go" id="search-go">
+    </div>
+
+    <div class="modal" tabindex="-1" role="dialog" id="modal">
+      <div class="modal-dialog" role="document">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title" id="modal-title"></h5>
+            <button type="button" class="close" data-dismiss="modal" aria-label="Close" onclick="closeModal()">
+              <span aria-hidden="true">&times;</span>
+            </button>
+          </div>
+          <div class="modal-body">
+            <div class="modal-image">
+              <img id="modal-image" alt="">
+            </div>
+            <div class="modal-text">
+              <p id="modal-author"></p>
+              <p id="modal-rating"></p>
+              <p id="modal-publishing-date"></p>
+              <p id="modal-isbn10"></p>
+              <p id="modal-isbn13"></p>
+              <p id="modal-epub"></p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="table-wrapper">
+      <table class="table">
+        <thead>
+          <tr>
+            <th scope="col">Title</th>
+            <th scope="col">Author</th>
+            <th scope="col">ISBN-13</th>
+            <th scope="col">Avg Rating</th>
+            <th scope="col">Image</th>
+            <th scope="col">EPub?</th>
+            <th scope="col">Publish Date</th>
+          </tr>
+        </thead>
+        <tbody id="booksTableBody">
+        </tbody>
+      </table>
+    </div>
+    <script src="./app.js"></script>
+    <script src="https://code.jquery.com/jquery-3.3.1.min.js"></script>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.14.0/umd/popper.min.js" integrity="sha384-cs/chFZiN24E4KMATLdqdvsezGxaGsi4hLGOzlXwp5UZB1LY//20VyM2taTB4QvJ"
+      crossorigin="anonymous"></script>
+
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.1.0/js/bootstrap.min.js" integrity="sha384-uefMccjFJAIv6A+rW+L4AHf99KvxDjWSu1z9VI8SKNVmz4sk7buKt/6v9KI65qnm"
+      crossorigin="anonymous"></script>
+
+    <script src="http://sabioapi2.azurewebsites.net/scripts/sabio.js"></script>
+    <script>
+      sabio.page.startUp = () => {
+        $.ajaxSetup({
+          headers: {
+            'sabio-auth': 'U0XK63Y2H'
+          }
+        })
+
+        $('#search-go').on('click', searchBook);
+      }
+
+      function searchBook( evt ) {
+        evt.preventDefault();
+        const search = $('input[name="bookSearch"]').val();
+        getBooks( search, onSuccess, onError )
+          .then( books => {
+            const {items} = books
+            const tbody = $('#booksTableBody');
+            for ( let i=0; i<items.length; i++ ) {
+              const tr = document.createElement('tr');
+              const {volumeInfo, accessInfo} = items[i];
+              const {averageRating} = volumeInfo;
+
+              const title = document.createElement('td');
+              title.innerHTML = volumeInfo.title;
+              tr.append(title);
+
+              const author = document.createElement('td');
+              author.innerHTML = volumeInfo.authors.join(', ');
+              tr.append(author);
+
+              const identifiers = volumeInfo.industryIdentifiers;
+              const isbn13 = identifiers.filter( id => {
+                return id.type === "ISBN_13";
+              } )
+
+              const isbn = document.createElement('td');
+              isbn.innerHTML = isbn13.length > 0 ? isbn13[0].identifier : '';
+              tr.append(isbn);
+
+              const avgRating = document.createElement('td');
+              avgRating.innerHTML = averageRating ? averageRating : '';
+              tr.append(avgRating);
+
+              const image = document.createElement('td');
+              const img = document.createElement('img');
+              image.className = 'image'
+              image.onclick = function (){showModal(items[i])};
+              img.src = volumeInfo.imageLinks.smallThumbnail;
+              image.append(img);
+              tr.append(image);
+
+              const epub = document.createElement('td');
+              epub.innerHTML = accessInfo.epub.isAvailable;
+              tr.append(epub);
+
+              const publishedDate = document.createElement('td');
+              publishedDate.innerHTML = volumeInfo.publishedDate;
+              tr.append(publishedDate);
+
+              tbody.append(tr);
+            }
+          } )
+      }
+
+      function showModal( data ) {
+        const { volumeInfo, accessInfo } = data;
+        const { averageRating } = volumeInfo;
+        const modal = $('#modal');
+        modal.modal('toggle');
+        const identifiers = volumeInfo.industryIdentifiers;
+        const isbn13 = identifiers.filter( id => {
+          return id.type === "ISBN_13";
+        } )
+        const isbn10 = identifiers.filter( id => {
+          return id.type === "ISBN_10";
+        } )
+        $('#modal-image').attr("src", volumeInfo.imageLinks.smallThumbnail);
+        $('#modal-title').html(volumeInfo.title);
+        $('#modal-author').html(`By: ${volumeInfo.authors.join(', ')}`);
+        $('#modal-rating').html(`Rating: ${averageRating ? averageRating : 'None'}`);
+        $('#modal-publishing-date').html(`Published Date: ${volumeInfo.publishedDate}`);
+        $('#modal-isbn10').html(isbn10.length > 0 ? `ISBN10: ${isbn10[0].identifier}` : '');
+        $('#modal-isbn13').html(isbn13.length > 0 ? `ISBN13: ${isbn13[0].identifier}` : '');
+        $('#modal-epub').html(`ePub: ${accessInfo.epub.isAvailable}`);
+      }
+
+      function closeModal() {
+        const modal = $('#modal');
+        modal.modal('toggle');
+      }
+    </script>
+  </body>
+</html>
